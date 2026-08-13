@@ -3,6 +3,10 @@ const mongoose = require("mongoose")
 
 
 function connectToDB() {
+    if (!process.env.MONGO_URI) {
+        console.error("CRITICAL ERROR: MONGO_URI environment variable is missing!");
+        process.exit(1);
+    }
 
     mongoose.connect(process.env.MONGO_URI)
         .then(() => {
