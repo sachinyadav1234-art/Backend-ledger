@@ -19,10 +19,10 @@ npm install
 ```
 
 ### 2. Configure Environment Variables (`.env`)
-A `.env` file is already created in the project root with the following default configuration:
+A `.env.example` file can be configured like this:
 ```env
 MONGO_URI=mongodb://localhost:27017/backend_ledger
-JWT_SECRET=e1CS7JH5w9uJz0l37PT3A8
+JWT_SECRET=your_jwt_secret_here
 ```
 *Make sure your local MongoDB instance is running at `mongodb://localhost:27017` or update the `MONGO_URI` to point to your MongoDB Atlas cluster.*
 
