@@ -27,4 +27,13 @@ app.use("/api/auth", authRouter)
 app.use("/api/accounts", accountRouter)
 app.use("/api/transactions", transactionRoutes)
 
+// Global error handling middleware
+app.use((err, req, res, next) => {
+    console.error("Unhandled error:", err);
+    res.status(err.status || 500).json({
+        status: "error",
+        message: err.message || "Internal Server Error"
+    });
+});
+
 module.exports = app
