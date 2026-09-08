@@ -8,7 +8,7 @@ function connectToDB() {
         process.exit(1);
     }
 
-    mongoose.connect(process.env.MONGO_URI)
+    mongoose.connect(process.env.MONGO_URI, { retryWrites: false })
         .then(() => {
             console.log("server is connected to DB")
         })

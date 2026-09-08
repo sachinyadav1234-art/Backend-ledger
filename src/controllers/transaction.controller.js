@@ -181,6 +181,37 @@ async function createInitialFundsTransaction(req, res) {
         })
     }
 
+    const isTransactionAlreadyExists = await transactionModel.findOne({
+        idempotencyKey: idempotencyKey
+    })
+
+    if (isTransactionAlreadyExists) {
+        if (isTransactionAlreadyExists.status === "COMPLETED") {
+            return res.status(200).json({
+                message: "Transaction already processed",
+                transaction: isTransactionAlreadyExists
+            })
+        }
+
+        if (isTransactionAlreadyExists.status === "PENDING") {
+            return res.status(200).json({
+                message: "Transaction is still processing",
+            })
+        }
+
+        if (isTransactionAlreadyExists.status === "FAILED") {
+            return res.status(500).json({
+                message: "Transaction processing failed, please retry"
+            })
+        }
+
+        if (isTransactionAlreadyExists.status === "REVERSED") {
+            return res.status(500).json({
+                message: "Transaction was reversed, please retry"
+            })
+        }
+    }
+
     const fromUserAccount = await accountModel.findOne({
         user: req.user._id
     })
@@ -192,44 +223,79 @@ async function createInitialFundsTransaction(req, res) {
     }
 
     let transaction;
-    const session = await mongoose.startSession()
+    let session;
+    let sessionOpt = {};
     try {
-        session.startTransaction()
+        session = await mongoose.startSession();
+        session.startTransaction();
+        sessionOpt = { session };
+    } catch (e) {
+        session = null;
+    }
 
-        transaction = new transactionModel({
-            fromAccount: fromUserAccount._id,
-            toAccount,
-            amount,
-            idempotencyKey,
-            status: "PENDING"
-        })
+    try {
+        try {
+            transaction = (await transactionModel.create([ {
+                fromAccount: fromUserAccount._id,
+                toAccount,
+                amount,
+                idempotencyKey,
+                status: "PENDING"
+            } ], sessionOpt))[ 0 ];
+        } catch (error) {
+            if (session && (error.message?.includes("Transaction numbers are only allowed") || error.message?.includes("retryable writes"))) {
+                session.endSession();
+                session = null;
+                sessionOpt = {};
+                transaction = (await transactionModel.create([ {
+                    fromAccount: fromUserAccount._id,
+                    toAccount,
+                    amount,
+                    idempotencyKey,
+                    status: "PENDING"
+                } ]))[ 0 ];
+            } else {
+                throw error;
+            }
+        }
 
-        const debitLedgerEntry = await ledgerModel.create([ {
+        await ledgerModel.create([ {
             account: fromUserAccount._id,
             amount: amount,
             transaction: transaction._id,
             type: "DEBIT"
-        } ], { session })
+        } ], sessionOpt)
 
-        const creditLedgerEntry = await ledgerModel.create([ {
+        await ledgerModel.create([ {
             account: toAccount,
             amount: amount,
             transaction: transaction._id,
             type: "CREDIT"
-        } ], { session })
+        } ], sessionOpt)
+
+        await transactionModel.findOneAndUpdate(
+            { _id: transaction._id },
+            { status: "COMPLETED" },
+            sessionOpt
+        )
 
         transaction.status = "COMPLETED"
-        await transaction.save({ session })
 
-        await session.commitTransaction()
+        if (session) {
+            await session.commitTransaction()
+        }
     } catch (error) {
-        await session.abortTransaction()
+        if (session) {
+            await session.abortTransaction()
+        }
         return res.status(400).json({
             message: "Initial funds transaction failed to process. Please retry.",
             error: error.message || error
         })
     } finally {
-        session.endSession()
+        if (session) {
+            session.endSession()
+        }
     }
 
     return res.status(201).json({
