@@ -5,17 +5,9 @@ const accountModel = require("../models/account.model");
 
 async function seedSystemUser() {
     try {
-        if (!process.env.MONGO_URI) {
-            console.error("CRITICAL ERROR: MONGO_URI environment variable is missing!");
-            process.exit(1);
-        }
-
         const email = process.env.SYSTEM_USER_EMAIL || "system@ledger.com";
         const password = process.env.SYSTEM_USER_PASSWORD || "SystemPassword123!";
         const name = process.env.SYSTEM_USER_NAME || "System User";
-
-        await mongoose.connect(process.env.MONGO_URI, { retryWrites: false });
-        console.log("Connected to MongoDB for system user seeding...");
 
         let systemUser = await userModel.findOne({ email }).select("+systemUser");
 
@@ -28,7 +20,13 @@ async function seedSystemUser() {
             });
             console.log(`System User created successfully with email: ${systemUser.email}`);
         } else {
-            console.log(`System User already exists with email: ${systemUser.email}`);
+            if (!systemUser.systemUser) {
+                await userModel.updateOne({ _id: systemUser._id }, { $set: { systemUser: true } });
+                console.log(`Updated existing user ${email} to systemUser: true`);
+                systemUser.systemUser = true;
+            } else {
+                console.log(`System User already exists with email: ${systemUser.email}`);
+            }
         }
 
         let systemAccount = await accountModel.findOne({ user: systemUser._id });
@@ -43,13 +41,33 @@ async function seedSystemUser() {
         }
 
         console.log("System User setup completed successfully.");
-        await mongoose.disconnect();
-        process.exit(0);
+        return systemUser;
     } catch (error) {
         console.error("Error seeding system user:", error.message || error);
-        await mongoose.disconnect();
-        process.exit(1);
+        throw error;
     }
 }
 
-seedSystemUser();
+if (require.main === module) {
+    if (!process.env.MONGO_URI) {
+        console.error("CRITICAL ERROR: MONGO_URI environment variable is missing!");
+        process.exit(1);
+    }
+
+    mongoose.connect(process.env.MONGO_URI, { retryWrites: false })
+        .then(async () => {
+            console.log("Connected to MongoDB for system user seeding...");
+            await seedSystemUser();
+            await mongoose.disconnect();
+            process.exit(0);
+        })
+        .catch(async (error) => {
+            console.error("Error running system user seed script:", error.message || error);
+            try {
+                await mongoose.disconnect();
+            } catch (e) {}
+            process.exit(1);
+        });
+}
+
+module.exports = seedSystemUser;
