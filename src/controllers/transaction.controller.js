@@ -249,13 +249,25 @@ async function createInitialFundsTransaction(req, res) {
         }
     }
 
-    const fromUserAccount = await accountModel.findOne({
+    let fromUserAccount = await accountModel.findOne({
         user: req.user._id
     })
 
     if (!fromUserAccount) {
+        fromUserAccount = await accountModel.create({
+            user: req.user._id
+        })
+    }
+
+    if (fromUserAccount._id.toString() === toUserAccount._id.toString()) {
         return res.status(400).json({
-            message: "System user account not found"
+            message: "Target account (toAccount) must be a user account different from the system account"
+        })
+    }
+
+    if (fromUserAccount.status !== "ACTIVE" || toUserAccount.status !== "ACTIVE") {
+        return res.status(400).json({
+            message: "Both system account and target account must be ACTIVE to process transaction"
         })
     }
 
