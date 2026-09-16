@@ -979,7 +979,8 @@
                 fields: [
                     { name: 'email', label: 'Email Address', type: 'email', placeholder: 'e.g. alice@example.com', value: 'alice@example.com' },
                     { name: 'password', label: 'Password', type: 'password', placeholder: 'Your password', value: 'password123' }
-                ]
+                ],
+                hasSystemLoginBtn: true
             },
             'logout': {
                 method: 'POST',
@@ -1028,6 +1029,7 @@
                 url: '/api/transactions/system/initial-funds',
                 desc: 'Deposit initial funds from the system user account. Access restricted to System Users.',
                 auth: true,
+                hasSystemUserNotice: true,
                 fields: [
                     { name: 'toAccount', label: 'Target Account ID', type: 'text', placeholder: 'Recipient account MongoDB ID', value: '', hasSelect: true },
                     { name: 'amount', label: 'Deposit Amount (INR)', type: 'number', placeholder: 'e.g., 10000', value: '5000' },
@@ -1068,13 +1070,63 @@
             }
         }
 
+        // Quick System User Login Helper
+        async function loginAsSystemUser() {
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: 'system@ledger.com',
+                        password: 'SystemPassword123!'
+                    })
+                });
+
+                const data = await response.json();
+                if (response.ok && data.token) {
+                    token = data.token;
+                    localStorage.setItem('ledger_token', token);
+                    authUser = data.user;
+                    localStorage.setItem('ledger_user', JSON.stringify(data.user));
+                    updateAuthUI();
+                    await fetchAccounts();
+
+                    const statusBox = document.getElementById('response-status');
+                    statusBox.className = 'response-status-bar response-success';
+                    statusBox.querySelector('span:first-child').textContent = 'STATUS: 200 LOGGED IN AS SYSTEM USER';
+                    document.getElementById('response-code').textContent = JSON.stringify({
+                        message: "Successfully authenticated as System User",
+                        user: data.user,
+                        token: data.token
+                    }, null, 2);
+
+                    if (currentEndpoint === 'initial-funds' || currentEndpoint === 'login') {
+                        selectEndpoint(currentEndpoint);
+                    }
+                } else {
+                    alert('System User login failed: ' + (data.message || 'Unknown error'));
+                }
+            } catch (err) {
+                alert('Failed to reach server for System User login: ' + err.message);
+            }
+        }
+
         // Select API Endpoint from list
         function selectEndpoint(key) {
             currentEndpoint = key;
             
             // Set nav active state
             document.querySelectorAll('.route-item').forEach(item => item.classList.remove('active'));
-            event.currentTarget.classList.add('active');
+            if (event && event.currentTarget && event.currentTarget.classList) {
+                event.currentTarget.classList.add('active');
+            } else {
+                const buttons = document.querySelectorAll('.route-item');
+                buttons.forEach(btn => {
+                    if (btn.getAttribute('onclick')?.includes(`'${key}'`)) {
+                        btn.classList.add('active');
+                    }
+                });
+            }
             
             const schema = schemas[key];
             
@@ -1107,6 +1159,47 @@
             // Render Dynamic Fields
             const fieldsContainer = document.getElementById('dynamic-fields');
             fieldsContainer.innerHTML = '';
+
+            // If login schema, insert Quick System User Login button
+            if (schema.hasSystemLoginBtn) {
+                const sysBtnDiv = document.createElement('div');
+                sysBtnDiv.style.marginBottom = '1.25rem';
+                sysBtnDiv.innerHTML = `
+                    <button type="button" onclick="loginAsSystemUser()" style="width:100%; background: rgba(6, 182, 212, 0.15); border: 1px solid var(--primary); color: var(--primary); padding: 0.6rem; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                        🔑 Quick Login as System User (system@ledger.com)
+                    </button>
+                `;
+                fieldsContainer.appendChild(sysBtnDiv);
+            }
+
+            // If system endpoint, check if currently logged in user is System User
+            if (schema.hasSystemUserNotice) {
+                const isSysUser = authUser && (authUser.systemUser || authUser.email === 'system@ledger.com');
+                const noticeDiv = document.createElement('div');
+                noticeDiv.style.marginBottom = '1.25rem';
+                noticeDiv.style.padding = '0.75rem 1rem';
+                noticeDiv.style.borderRadius = '8px';
+
+                if (isSysUser) {
+                    noticeDiv.style.background = 'rgba(16, 185, 129, 0.1)';
+                    noticeDiv.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                    noticeDiv.style.color = 'var(--success)';
+                    noticeDiv.innerHTML = `✅ Authenticated as System User (<code>system@ledger.com</code>). You can process initial funds deposits.`;
+                } else {
+                    noticeDiv.style.background = 'rgba(245, 158, 11, 0.1)';
+                    noticeDiv.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+                    noticeDiv.style.color = 'var(--warning)';
+                    noticeDiv.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                            <span>⚠️ Initial funds require System User privileges. Currently logged in as: <strong>${authUser ? (authUser.email || authUser.name) : 'Guest'}</strong></span>
+                            <button type="button" onclick="loginAsSystemUser()" style="background: var(--warning); color: #000; border: none; padding: 0.35rem 0.75rem; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 0.8rem;">
+                                Switch to System User
+                            </button>
+                        </div>
+                    `;
+                }
+                fieldsContainer.appendChild(noticeDiv);
+            }
             
             schema.fields.forEach(field => {
                 const group = document.createElement('div');
@@ -1179,6 +1272,9 @@
                 'Content-Type': 'application/json'
             };
             
+            // Ensure token is synced from localStorage
+            token = localStorage.getItem('ledger_token') || token;
+
             // Attach bearer token if active
             if (token) {
                 headers['Authorization'] = `Bearer ${token}`;
@@ -1209,11 +1305,15 @@
             const startTime = performance.now();
             
             try {
-                const response = await fetch(requestUrl, {
+                const fetchOptions = {
                     method,
-                    headers,
-                    body: body
-                });
+                    headers
+                };
+                if (method !== 'GET' && method !== 'HEAD' && body !== null) {
+                    fetchOptions.body = body;
+                }
+
+                const response = await fetch(requestUrl, fetchOptions);
                 
                 const timeTaken = Math.round(performance.now() - startTime);
                 const data = await response.json();
@@ -1230,8 +1330,13 @@
                 }
                 document.getElementById('response-time').textContent = `${timeTaken} ms`;
                 
-                // Syntax format JSON code output
-                document.getElementById('response-code').textContent = JSON.stringify(data, null, 2);
+                // If 403 access restricted, append tip to JSON response view
+                let responseOutput = JSON.stringify(data, null, 2);
+                if (response.status === 403 && data.message && data.message.includes('system users')) {
+                    responseOutput += `\n\n// 💡 Tip: Click 'Switch to System User' on the form or 'Quick Login as System User' to authenticate as system user (system@ledger.com / SystemPassword123!).`;
+                }
+
+                document.getElementById('response-code').textContent = responseOutput;
                 
                 // If response contains a login token, save it
                 if (data.token) {
@@ -1278,6 +1383,7 @@
 
         // Fetch user accounts to display in Cached Sidebar
         async function fetchAccounts() {
+            token = localStorage.getItem('ledger_token') || token;
             if (!token) return;
             
             try {
@@ -1398,6 +1504,7 @@
         function updateAuthUI() {
             const badgeContainer = document.getElementById('auth-badge-container');
             const usernameLabel = document.getElementById('badge-username');
+            token = localStorage.getItem('ledger_token') || token;
             
             if (token) {
                 badgeContainer.style.display = 'block';
@@ -1405,26 +1512,37 @@
                 if (savedUser) {
                     try {
                         const userObj = JSON.parse(savedUser);
-                        usernameLabel.textContent = userObj.name || userObj.email || 'User';
+                        authUser = userObj;
+                        if (userObj.systemUser || userObj.email === 'system@ledger.com') {
+                            usernameLabel.innerHTML = `⚡ <strong>System User</strong> (${userObj.email})`;
+                            usernameLabel.style.color = 'var(--primary)';
+                        } else {
+                            usernameLabel.textContent = userObj.name || userObj.email || 'User';
+                            usernameLabel.style.color = '#fff';
+                        }
                     } catch (e) {
-                        usernameLabel.textContent = 'Active User';
+                        usernameLabel.textContent = 'Authenticated';
                     }
                 } else {
                     usernameLabel.textContent = 'Authenticated';
                 }
             } else {
                 badgeContainer.style.display = 'none';
+                authUser = null;
             }
         }
 
         // Log out action
         async function logoutUser() {
+            token = localStorage.getItem('ledger_token') || token;
             // Send log out api request
             try {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
+                if (token) {
+                    await fetch('/api/auth/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                }
             } catch(e) {}
 
             token = '';

@@ -34,6 +34,7 @@ async function createTransaction(req, res) {
 
     const fromUserAccount = await accountModel.findOne({
         _id: fromAccount,
+        user: req.user._id
     })
 
     const toUserAccount = await accountModel.findOne({
@@ -104,50 +105,86 @@ async function createTransaction(req, res) {
     }
 
     let transaction;
-    const session = await mongoose.startSession();
+    let session;
+    let sessionOpt = {};
     try {
+        session = await mongoose.startSession();
         session.startTransaction();
+        sessionOpt = { session };
+    } catch (e) {
+        session = null;
+    }
 
+    try {
         /**
          * 5. Create transaction (PENDING)
          */
-        transaction = (await transactionModel.create([ {
-            fromAccount,
-            toAccount,
-            amount,
-            idempotencyKey,
-            status: "PENDING"
-        } ], { session }))[ 0 ]
+        try {
+            transaction = (await transactionModel.create([ {
+                fromAccount,
+                toAccount,
+                amount,
+                idempotencyKey,
+                status: "PENDING"
+            } ], sessionOpt))[ 0 ]
+        } catch (error) {
+            if (session && (error.message?.includes("Transaction numbers are only allowed") || error.message?.includes("retryable writes"))) {
+                session.endSession();
+                session = null;
+                sessionOpt = {};
+                transaction = (await transactionModel.create([ {
+                    fromAccount,
+                    toAccount,
+                    amount,
+                    idempotencyKey,
+                    status: "PENDING"
+                } ]))[ 0 ]
+            } else {
+                throw error;
+            }
+        }
 
         const debitLedgerEntry = await ledgerModel.create([ {
             account: fromAccount,
             amount: amount,
             transaction: transaction._id,
             type: "DEBIT"
-        } ], { session })
+        } ], sessionOpt)
 
         const creditLedgerEntry = await ledgerModel.create([ {
             account: toAccount,
             amount: amount,
             transaction: transaction._id,
             type: "CREDIT"
-        } ], { session })
+        } ], sessionOpt)
 
-        await transactionModel.findOneAndUpdate(
+        const updatedTransaction = await transactionModel.findOneAndUpdate(
             { _id: transaction._id },
             { status: "COMPLETED" },
-            { session }
+            { ...sessionOpt, new: true }
         )
 
-        await session.commitTransaction()
+        if (updatedTransaction) {
+            transaction = updatedTransaction;
+        } else {
+            transaction.status = "COMPLETED";
+        }
+
+        if (session) {
+            await session.commitTransaction()
+        }
     } catch (error) {
-        await session.abortTransaction()
+        if (session) {
+            await session.abortTransaction()
+        }
         return res.status(400).json({
             message: "Transaction failed to process. Please retry.",
             error: error.message || error
         })
     } finally {
-        session.endSession()
+        if (session) {
+            session.endSession()
+        }
     }
 
     /**
@@ -273,13 +310,17 @@ async function createInitialFundsTransaction(req, res) {
             type: "CREDIT"
         } ], sessionOpt)
 
-        await transactionModel.findOneAndUpdate(
+        const updatedTransaction = await transactionModel.findOneAndUpdate(
             { _id: transaction._id },
             { status: "COMPLETED" },
-            sessionOpt
+            { ...sessionOpt, new: true }
         )
 
-        transaction.status = "COMPLETED"
+        if (updatedTransaction) {
+            transaction = updatedTransaction;
+        } else {
+            transaction.status = "COMPLETED"
+        }
 
         if (session) {
             await session.commitTransaction()
