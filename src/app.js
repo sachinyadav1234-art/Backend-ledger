@@ -1,12 +1,13 @@
 const express = require("express")
 const cookieParser = require("cookie-parser")
-const path = require("path")
+
+
 
 const app = express()
 
+
 app.use(express.json())
 app.use(cookieParser())
-app.use(express.static(path.join(__dirname, "public")))
 
 /**
  * - Routes required
@@ -20,20 +21,11 @@ const transactionRoutes = require("./routes/transaction.routes")
  */
 
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"))
+    res.send("Ledger Service is up and running")
 })
 
 app.use("/api/auth", authRouter)
 app.use("/api/accounts", accountRouter)
 app.use("/api/transactions", transactionRoutes)
-
-// Global error handling middleware
-app.use((err, req, res, next) => {
-    console.error("Unhandled error:", err);
-    res.status(err.status || 500).json({
-        status: "error",
-        message: err.message || "Internal Server Error"
-    });
-});
 
 module.exports = app
