@@ -7,8 +7,7 @@ const app = express();
 // Middleware
 app.use(express.json());
 app.use(cookieParser());
-app.use(express.static(path.join(__dirname, "public")));
-
+app.use(express.static(path.join(process.cwd(), "public")));
 // Routes
 const authRouter = require("./routes/auth.routes");
 const accountRouter = require("./routes/account.routes");
@@ -16,7 +15,7 @@ const transactionRoutes = require("./routes/transaction.routes");
 
 // Home Route
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, "public", "index.html"));
+    res.sendFile(path.join(process.cwd(), "public", "index.html"));
 });
 
 // API Routes
