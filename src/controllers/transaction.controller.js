@@ -161,7 +161,7 @@ async function createTransaction(req, res) {
         const updatedTransaction = await transactionModel.findOneAndUpdate(
             { _id: transaction._id },
             { status: "COMPLETED" },
-            { ...sessionOpt, new: true }
+            { ...sessionOpt, returnDocument: 'after' }
         )
 
         if (updatedTransaction) {
@@ -325,7 +325,7 @@ async function createInitialFundsTransaction(req, res) {
         const updatedTransaction = await transactionModel.findOneAndUpdate(
             { _id: transaction._id },
             { status: "COMPLETED" },
-            { ...sessionOpt, new: true }
+            { ...sessionOpt, returnDocument: 'after' }
         )
 
         if (updatedTransaction) {

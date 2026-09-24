@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend Ledger Service - API Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #0d1117;
+            --bg-card: #161b22;
+            --border-color: #30363d;
+            --text-primary: #c9d1d9;
+            --text-heading: #f0f6fc;
+            --text-muted: #8b949e;
+            --accent-green: #238636;
+            --accent-blue: #1f6feb;
+            --accent-purple: #8957e5;
+            --accent-cyan: #38bdf8;
+            --accent-danger: #da3633;
+            --input-bg: #0d1117;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            padding: 24px;
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            margin-bottom: 24px;
+        }
+
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .badge {
+            background: #23863622;
+            color: #3fb950;
+            border: 1px solid #23863655;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.85rem;
+            color: #3fb950;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background: #3fb950;
+            border-radius: 50%;
+            box-shadow: 0 0 8px #3fb950;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card h2 {
+            font-size: 1.15rem;
+            color: var(--text-heading);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+        }
+
+        label {
+            display: block;
+            font-size: 0.82rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            background: var(--input-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 9px 12px;
+            color: var(--text-primary);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--accent-blue);
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        button {
+            cursor: pointer;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        .btn-green {
+            background: var(--accent-green);
+            color: #fff;
+        }
+
+        .btn-blue {
+            background: var(--accent-blue);
+            color: #fff;
+        }
+
+        .btn-purple {
+            background: var(--accent-purple);
+            color: #fff;
+        }
+
+        .btn-secondary {
+            background: #21262d;
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .logs-box {
+            background: #090d13;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            padding: 14px;
+            height: 480px;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            color: #e6edf3;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .active-session-bar {
+            background: #1f6feb15;
+            border: 1px solid #1f6feb40;
+            border-radius: 6px;
+            padding: 10px 14px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="header-title">
+                <h1 style="color: var(--text-heading); font-size: 1.4rem;">🏛️ Backend Ledger API Dashboard</h1>
+                <span class="badge">Double-Entry Core</span>
+            </div>
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span>API Ready (Port 3000)</span>
+            </div>
+        </header>
+
+        <div id="sessionBar" class="active-session-bar" style="display: none;">
+            <div>
+                <strong>Active User:</strong> <span id="sessionUser">Not logged in</span> | 
+                <strong>Token:</strong> <span id="sessionToken" style="font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;">None</span>
+            </div>
+            <button class="btn-secondary" onclick="logout()">Logout</button>
+        </div>
+
+        <div class="main-grid">
+            <!-- Left Column: Operations -->
+            <div>
+                <!-- Auth Section -->
+                <div class="card">
+                    <h2>1. Authentication</h2>
+                    <div class="form-group">
+                        <label>Full Name (Register)</label>
+                        <input id="authName" type="text" placeholder="e.g. Satoshi Nakamoto" value="Demo User">
+                    </div>
+                    <div class="form-group">
+                        <label>Email Address</label>
+                        <input id="authEmail" type="email" placeholder="user@ledger.local" value="demo@ledger.local">
+                    </div>
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input id="authPassword" type="password" placeholder="Password" value="password123">
+                    </div>
+                    <div class="btn-group">
+                        <button class="btn-green" onclick="registerUser()">Register</button>
+                        <button class="btn-blue" onclick="loginUser()">Login</button>
+                    </div>
+                </div>
+
+                <!-- Account Management -->
+                <div class="card">
+                    <h2>2. Account Management</h2>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 12px;">Create and inspect accounts for the authenticated user.</p>
+                    <div class="btn-group">
+                        <button class="btn-green" onclick="createAccount()">+ Create Account</button>
+                        <button class="btn-secondary" onclick="getAccounts()">Fetch All Accounts</button>
+                    </div>
+                    <div class="form-group" style="margin-top: 14px;">
+                        <label>Account ID for Balance Check</label>
+                        <input id="checkAccountId" type="text" placeholder="Enter Account ID">
+                    </div>
+                    <button class="btn-blue" onclick="checkBalance()">Check Balance</button>
+                </div>
+
+                <!-- Financial Transfers -->
+                <div class="card">
+                    <h2>3. Double-Entry Transfer</h2>
+                    <div class="form-group">
+                        <label>Sender Account ID (From)</label>
+                        <input id="txFromAccount" type="text" placeholder="Source Account ID">
+                    </div>
+                    <div class="form-group">
+                        <label>Receiver Account ID (To)</label>
+                        <input id="txToAccount" type="text" placeholder="Destination Account ID">
+                    </div>
+                    <div class="form-group">
+                        <label>Amount (INR)</label>
+                        <input id="txAmount" type="number" placeholder="e.g. 250" value="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Idempotency Key</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input id="txIdempotencyKey" type="text" placeholder="Unique Key">
+                            <button class="btn-secondary" style="white-space: nowrap;" onclick="genIdempotencyKey()">Generate</button>
+                        </div>
+                    </div>
+                    <button class="btn-purple" style="width: 100%; padding: 10px;" onclick="executeTransfer()">⚡ Execute Transfer</button>
+                </div>
+            </div>
+
+            <!-- Right Column: System Funding & Live Response Console -->
+            <div>
+                <!-- System Funding (Seed / Admin) -->
+                <div class="card">
+                    <h2>4. System Initial Funding</h2>
+                    <p style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 10px;">Deposit initial capital into an account using a System Admin Token.</p>
+                    <div class="form-group">
+                        <label>System Bearer Token</label>
+                        <input id="systemTokenInput" type="password" placeholder="System JWT Token">
+                    </div>
+                    <div class="form-group">
+                        <label>Target Account ID (To)</label>
+                        <input id="fundToAccount" type="text" placeholder="Account ID">
+                    </div>
+                    <div class="form-group">
+                        <label>Deposit Amount</label>
+                        <input id="fundAmount" type="number" value="1000">
+                    </div>
+                    <button class="btn-green" onclick="depositInitialFunds()">💰 Deposit System Funds</button>
+                </div>
+
+                <!-- Output / Logs Console -->
+                <div class="card">
+                    <h2>
+                        <span>Live JSON Response Console</span>
+                        <button class="btn-secondary" style="font-size: 0.75rem; padding: 4px 8px;" onclick="clearLogs()">Clear</button>
+                    </h2>
+                    <div id="logs" class="logs-box">// Ready to execute requests. Responses will appear here in real-time.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentToken = localStorage.getItem("ledger_token") || "";
+        let currentUser = JSON.parse(localStorage.getItem("ledger_user") || "null");
+
+        function log(title, data) {
+            const logsBox = document.getElementById("logs");
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${title}\n` + JSON.stringify(data, null, 2) + "\n\n";
+            logsBox.textContent = logEntry + logsBox.textContent;
+        }
+
+        function clearLogs() {
+            document.getElementById("logs").textContent = "// Console cleared.\n";
+        }
+
+        function updateSessionUI() {
+            const bar = document.getElementById("sessionBar");
+            if (currentToken && currentUser) {
+                bar.style.display = "flex";
+                document.getElementById("sessionUser").textContent = `${currentUser.name} (${currentUser.email})`;
+                document.getElementById("sessionToken").textContent = currentToken.substring(0, 24) + "...";
+            } else {
+                bar.style.display = "none";
+            }
+        }
+
+        function genIdempotencyKey() {
+            const key = "key-" + Date.now() + "-" + Math.random().toString(36).substring(2, 9);
+            document.getElementById("txIdempotencyKey").value = key;
+        }
+
+        async function registerUser() {
+            const name = document.getElementById("authName").value;
+            const email = document.getElementById("authEmail").value;
+            const password = document.getElementById("authPassword").value;
+
+            try {
+                const res = await fetch("/api/auth/register", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, email, password })
+                });
+                const data = await res.json();
+                log("POST /api/auth/register", data);
+                if (data.token) {
+                    currentToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem("ledger_token", currentToken);
+                    localStorage.setItem("ledger_user", JSON.stringify(currentUser));
+                    updateSessionUI();
+                }
+            } catch (err) {
+                log("Register Error", { error: err.message });
+            }
+        }
+
+        async function loginUser() {
+            const email = document.getElementById("authEmail").value;
+            const password = document.getElementById("authPassword").value;
+
+            try {
+                const res = await fetch("/api/auth/login", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
+                });
+                const data = await res.json();
+                log("POST /api/auth/login", data);
+                if (data.token) {
+                    currentToken = data.token;
+                    currentUser = data.user;
+                    localStorage.setItem("ledger_token", currentToken);
+                    localStorage.setItem("ledger_user", JSON.stringify(currentUser));
+                    updateSessionUI();
+                }
+            } catch (err) {
+                log("Login Error", { error: err.message });
+            }
+        }
+
+        async function logout() {
+            try {
+                const res = await fetch("/api/auth/logout", {
+                    method: "POST",
+                    headers: { "Authorization": `Bearer ${currentToken}` }
+                });
+                const data = await res.json();
+                log("POST /api/auth/logout", data);
+            } catch (err) {
+                log("Logout Error", { error: err.message });
+            } finally {
+                currentToken = "";
+                currentUser = null;
+                localStorage.removeItem("ledger_token");
+                localStorage.removeItem("ledger_user");
+                updateSessionUI();
+            }
+        }
+
+        async function createAccount() {
+            try {
+                const res = await fetch("/api/accounts", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${currentToken}`
+                    }
+                });
+                const data = await res.json();
+                log("POST /api/accounts", data);
+                if (data.account?._id) {
+                    document.getElementById("checkAccountId").value = data.account._id;
+                    document.getElementById("fundToAccount").value = data.account._id;
+                    document.getElementById("txFromAccount").value = data.account._id;
+                }
+            } catch (err) {
+                log("Create Account Error", { error: err.message });
+            }
+        }
+
+        async function getAccounts() {
+            try {
+                const res = await fetch("/api/accounts", {
+                    headers: { "Authorization": `Bearer ${currentToken}` }
+                });
+                const data = await res.json();
+                log("GET /api/accounts", data);
+            } catch (err) {
+                log("Get Accounts Error", { error: err.message });
+            }
+        }
+
+        async function checkBalance() {
+            const accId = document.getElementById("checkAccountId").value;
+            if (!accId) return alert("Please specify an Account ID");
+
+            try {
+                const res = await fetch(`/api/accounts/balance/${accId}`, {
+                    headers: { "Authorization": `Bearer ${currentToken}` }
+                });
+                const data = await res.json();
+                log(`GET /api/accounts/balance/${accId}`, data);
+            } catch (err) {
+                log("Check Balance Error", { error: err.message });
+            }
+        }
+
+        async function executeTransfer() {
+            const fromAccount = document.getElementById("txFromAccount").value;
+            const toAccount = document.getElementById("txToAccount").value;
+            const amount = Number(document.getElementById("txAmount").value);
+            let idempotencyKey = document.getElementById("txIdempotencyKey").value;
+
+            if (!idempotencyKey) {
+                genIdempotencyKey();
+                idempotencyKey = document.getElementById("txIdempotencyKey").value;
+            }
+
+            try {
+                const res = await fetch("/api/transactions", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({ fromAccount, toAccount, amount, idempotencyKey })
+                });
+                const data = await res.json();
+                log("POST /api/transactions", data);
+            } catch (err) {
+                log("Transfer Error", { error: err.message });
+            }
+        }
+
+        async function depositInitialFunds() {
+            const token = document.getElementById("systemTokenInput").value;
+            const toAccount = document.getElementById("fundToAccount").value;
+            const amount = Number(document.getElementById("fundAmount").value);
+            const idempotencyKey = "fund-" + Date.now();
+
+            if (!token) return alert("Please provide the System Bearer Token (generated via seed script)");
+            if (!toAccount) return alert("Please specify the target Account ID");
+
+            try {
+                const res = await fetch("/api/transactions/system/initial-funds", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ toAccount, amount, idempotencyKey })
+                });
+                const data = await res.json();
+                log("POST /api/transactions/system/initial-funds", data);
+            } catch (err) {
+                log("Deposit Funds Error", { error: err.message });
+            }
+        }
+
+        // Initialize
+        genIdempotencyKey();
+        updateSessionUI();
+    </script>
+</body>
+</html>
